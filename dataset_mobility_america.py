@@ -3,6 +3,7 @@
 
 import pandas as pd
 import numpy as np
+import scipy as sp
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -84,7 +85,7 @@ print(weights[:10])
 #data = data.query('visitor_flows > 0.15')
 
 # keep k highest value edges for each from_node
-k=20
+k=1
 data = data.sort_values('visitor_flows').groupby('geoid_o').head(k)
 
 # plot the edges
@@ -96,12 +97,35 @@ lines = LineCollection(lines, linewidths=.1*weights)
 ax.add_collection(lines)
 plt.show()
 
+# Get adjacency matrix for out graph
+#graph.remove_edges_from(nx.selfloop_edges(G_whole))
+graph = nx.from_pandas_edgelist(data, 'geoid_o', 'geoid_d', ['visitor_flows'])
+S = nx.adjacency_matrix(graph)
 
-# Import it to networkx
-#G_whole = nx.from_pandas_edgelist(data, 'geoid_o', 'geoid_d', ['visitor_flows'])
-#nx.set_node_attributes(G_whole, geoid_indexed_data.to_dict('index'))
+def draw_network(coo_matrix, node_size=10, width=0.1):
+    graph = nx.from_numpy_array(coo_matrix.toarray())
+    nx.draw_networkx(graph, \
+            node_size=node_size, width=width, with_labels=False)
+    print(f"Sparsity: {calculate_sparsity(strong_product_graph)}")
+    plt.show()
 
-# remove self loops in this graph
-#G_whole.remove_edges_from(nx.selfloop_edges(G_whole))
+# create timegraph
+timegraph_size=2
+St = np.zeros((timegraph_size,timegraph_size))
+for i in range(1, timegraph_size):
+    St[i, i-1] = 1
 
-#nodes = G_whole.nodes(data=True)
+# Kronecker
+kronecker_product = sp.sparse.kron(St, S)
+draw_network(kronecker_product)
+
+# Cartesian
+# From paper On Cartesian product of matrices by Deepak Sarma: Cartesian product of two square matrices Aand Bas A&B=A⊗J+J⊗B, where J is the all one matrix of appropriate order and ⊗is the Kronecker product
+cartesian_product = sp.sparse.kron(St, np.identity(S.shape[0])) + sp.sparse.kron(np.identity(St.shape[0]), S)
+draw_network(cartesian_product)
+
+# Strong
+strong_product = kronecker_product + cartesian_product
+draw_network(strong_product)
+
+
