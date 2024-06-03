@@ -85,8 +85,11 @@ print(weights[:10])
 #data = data.query('visitor_flows > 0.15')
 
 # keep k highest value edges for each from_node
-k=1
+k=5
 data = data.sort_values('visitor_flows').groupby('geoid_o').head(k)
+
+#TODO:  keep edges such that the top 80% of population_flow per node is accounted for
+
 
 # plot the edges
 starts = [data['lng_o'], data['lat_o']]
@@ -102,18 +105,19 @@ plt.show()
 graph = nx.from_pandas_edgelist(data, 'geoid_o', 'geoid_d', ['visitor_flows'])
 S = nx.adjacency_matrix(graph)
 
-def draw_network(coo_matrix, node_size=10, width=0.1):
-    graph = nx.from_numpy_array(coo_matrix.toarray())
-    nx.draw_networkx(graph, \
-            node_size=node_size, width=width, with_labels=False)
-    print(f"Sparsity: {calculate_sparsity(graph)}")
-    plt.show()
 
 def calculate_sparsity(graph):
   M = nx.to_scipy_sparse_array(graph)
   matrix_size = len(graph.nodes) ** 2
   sparsity = (matrix_size - M.nnz) / matrix_size
   return sparsity
+
+def draw_network(coo_matrix, node_size=10, width=0.1):
+    graph = nx.from_numpy_array(coo_matrix.toarray())
+    nx.draw_networkx(graph, \
+            node_size=node_size, width=width, with_labels=False)
+    print(f"Sparsity: {calculate_sparsity(graph)}")
+    plt.show()
 
 # create timegraph
 timegraph_size=2
