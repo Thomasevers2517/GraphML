@@ -106,8 +106,14 @@ def draw_network(coo_matrix, node_size=10, width=0.1):
     graph = nx.from_numpy_array(coo_matrix.toarray())
     nx.draw_networkx(graph, \
             node_size=node_size, width=width, with_labels=False)
-    print(f"Sparsity: {calculate_sparsity(strong_product_graph)}")
+    print(f"Sparsity: {calculate_sparsity(graph)}")
     plt.show()
+
+def calculate_sparsity(graph):
+  M = nx.to_scipy_sparse_array(graph)
+  matrix_size = len(graph.nodes) ** 2
+  sparsity = (matrix_size - M.nnz) / matrix_size
+  return sparsity
 
 # create timegraph
 timegraph_size=2
