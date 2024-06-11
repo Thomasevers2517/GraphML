@@ -90,7 +90,7 @@ def initialize_node_data(subset_nodes, small_dataset):
     for node in nodes_subset_data:
         initial_node_data[node] = round(first_day_data[first_day_data['geoid_o'] == node]['pop_flows'].values[0] 
                                         / first_day_data[first_day_data['geoid_o'] == node]['visitor_flows'].values[0], 2)
-    print(initial_node_data)
+    # print(initial_node_data)
     return initial_node_data
 
 def update_node_data(initial_node_data):
