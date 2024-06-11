@@ -7,7 +7,7 @@ import var
 import pandas as pd
 
 class GraphRNN_dataset(torch.utils.data.Dataset):
-    def __init__(self, edge_data, node_data):
+    def __init__(self, edge_data, node_data = None, sim_node_data = True):
         
         self.n_time = len(edge_data)
         self.n_edges = len(edge_data[0])
@@ -23,8 +23,13 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
             
                 
         self.edge_weights = self.edge_weights.type(torch.LongTensor)
-        
-        self.node_data = torch.randn(self.n_time, self.n_nodes, 1)
+        if sim_node_data:
+            self.sim_node_data = torch.zeros(self.n_time, self.n_nodes, 2)
+            self.active_nodes = torch.cat([self.edge_weights[i][:, :2].flatten() for i in range(self.n_time)]).unique()
+            
+            for idx, node_id in enumerate(self.active_nodes):
+                self.sim_node_data[:][idx][0] = node_data[node_id]
+                self.sim_node_data[:][idx][1] = torch.rand(self.n_time)
         
     def __len__(self):
         return len(self.data)
