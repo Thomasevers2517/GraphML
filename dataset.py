@@ -1,3 +1,4 @@
+# OBJECTIVE: To explore the mobility dataset
 
 # for a single instant in time, build a graph with nodes as counties and edges as mobility between counties
 
@@ -39,7 +40,6 @@ print(nodes)
 # is there a node called 15005?
 print("Node 15005 exists:", '15005' in nodes['geoid_o'].values)
 print("Node 15005 exists:", '15005' in data['geoid_d'].values)
-
 
 # visualize these nodes based on their geographic location
 plt.scatter(nodes['lng_o'], nodes['lat_o'])

@@ -12,6 +12,7 @@ import sys
 
 # load data
 data = pd.read_csv('daily_county2county_2019_01_01.csv')
+
 ''' 
 Daily Flow Data 
 There are 594160 links of which across each link the following is noted
@@ -65,12 +66,10 @@ geoid_indexed_data.update(geoid_d_indexed_data)
 # plot the nodes
 lngs = geoid_indexed_data['lng_o']
 lats = geoid_indexed_data['lat_o']
-ax.scatter(lngs, lats, color='red', s=1)
-
+ax.scatter(lngs, lats, color='red', s=0.1)
 
 # filter out selfloops
 data = data.query('geoid_o != geoid_d')
-
 
 #normalize population flows
 normalize('pop_flows')
@@ -85,18 +84,16 @@ print(weights[:10])
 #data = data.query('visitor_flows > 0.15')
 
 # keep k highest value edges for each from_node
-k=5
+k=1
 data = data.sort_values('visitor_flows').groupby('geoid_o').head(k)
 
 #TODO:  keep edges such that the top 80% of population_flow per node is accounted for
-
 
 # plot the edges
 starts = [data['lng_o'], data['lat_o']]
 ends = [data['lng_d'], data['lat_d']]
 lines = np.array(list(zip(starts, ends))).T
 lines = LineCollection(lines, linewidths=.1*weights)
-
 ax.add_collection(lines)
 plt.show()
 
@@ -105,6 +102,8 @@ plt.show()
 graph = nx.from_pandas_edgelist(data, 'geoid_o', 'geoid_d', ['visitor_flows'])
 S = nx.adjacency_matrix(graph)
 
+# check if S is connected
+print(nx.is_connected(graph))
 
 def calculate_sparsity(graph):
   M = nx.to_scipy_sparse_array(graph)
@@ -127,15 +126,15 @@ for i in range(1, timegraph_size):
 
 # Kronecker
 kronecker_product = sp.sparse.kron(St, S)
-draw_network(kronecker_product)
+# draw_network(kronecker_product)
 
 # Cartesian
 # From paper On Cartesian product of matrices by Deepak Sarma: Cartesian product of two square matrices Aand Bas A&B=A⊗J+J⊗B, where J is the all one matrix of appropriate order and ⊗is the Kronecker product
 cartesian_product = sp.sparse.kron(St, np.identity(S.shape[0])) + sp.sparse.kron(np.identity(St.shape[0]), S)
-draw_network(cartesian_product)
+# draw_network(cartesian_product)
 
 # Strong
 strong_product = kronecker_product + cartesian_product
-draw_network(strong_product)
+# draw_network(strong_product)
 
 
