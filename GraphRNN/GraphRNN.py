@@ -130,7 +130,7 @@ class Graph_RNN(torch.nn.module):
         self.H  = None
     
     
-    def  forward(self, x_in, edge_weights=None):
+    def forward(self, x_in, edge_weights=None):
    
         if self.H is None:
             self.H = torch.zeros(x_in.shape[0], self.n_nodes, self.h_size, self.h_size)
@@ -140,7 +140,8 @@ class Graph_RNN(torch.nn.module):
         self.H = torch.tanh(torch.matmul(self.A, self.H) + torch.matmul(self.B, x_in) + torch.matmul(self.C, self.neigh_ag) + self.D)    
         
         x_out = torch.matmul(self.E, self.H)
-    
+        
+        return x_out
     
         
     

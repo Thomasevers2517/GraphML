@@ -209,10 +209,6 @@ if __name__ == "__main__":
     graph_df = preprocessor.combined_manual_kronecker()
     kron_flow_df, signals_df = preprocessor.disjoint_manual_kronecker()
 
-    print(graph_df.head(5))
-    print(graph_df.sample(5))
-    print(graph_df.tail(5))
-
     print(kron_flow_df.shape)
     print(signals_df.shape)
 
