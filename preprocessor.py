@@ -38,7 +38,6 @@ class Preprocessor:
         # preprocess
         self.process_epidemiology()
         self.epidemiology_timesteps = [self.epi_extract_date(date) for date in epi_dates]
-        print(self.epidemiology_timesteps)
         self.process_population_flow()
 
         # Drop counties that are not included in both datasets
@@ -190,5 +189,6 @@ if __name__ == "__main__":
     graph_df = preprocessor.manual_kronecker()
 
     print(graph_df.head(5))
+    print(graph_df.sample(5))
     print(graph_df.tail(5))
     draw_network(graph_df)
