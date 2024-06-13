@@ -1,7 +1,7 @@
 import torch
 import torch.sparse as sparse
 from Neighbor_Agregation import Neighbor_Aggregation
-        
+from tqdm import tqdm
 class Graph_RNN(torch.nn.Module):
     def __init__(self, n_nodes, n_features, h_size, f_out_size, edge_weights=None , device='cpu'):
         """ Initialize the Graph RNN
@@ -49,6 +49,10 @@ class Graph_RNN(torch.nn.Module):
         if x_in.shape != (x_in.shape[0], x_in.shape[1], self.n_nodes, self.n_features):
             raise ValueError(f"Input tensor shape is {x_in.shape}, expected {(x_in.shape[0], x_in.shape[1], self.n_nodes, self.n_features)}")
         
+        #use the edge weights of the first time step for the rest of the prediction loop. 
+        # Can be a smarter estimate, but same edges is nice.
+        self.AG.calc_adj(edge_weights[:,0,:,:]) 
+        
         if self.node_idx is None:
             self.node_idx = torch.zeros(self.n_nodes)
             self.node_idx = edge_weights[0, :, 0].unique() 
@@ -56,7 +60,8 @@ class Graph_RNN(torch.nn.Module):
         self.H = torch.zeros((x_in.shape[0], self.n_nodes, self.h_size), dtype=torch.float32, device=self.device)
 
         x_pred = []
-        for i in range(x_in.shape[1] + pred_hor):
+        for i in tqdm(range(x_in.shape[1] + pred_hor), desc="Forward pass"):
+            
             if i < x_in.shape[1]:
                 x_pred.append( self.forward_step(x_in[:, i, :], edge_weights=edge_weights[:,i,:,:]) )
             else:
@@ -77,7 +82,7 @@ class Graph_RNN(torch.nn.Module):
             
 
        
-        self.neigh_ag = self.AG(self.H, edge_weights=edge_weights, node_idx=self.node_idx)
+        self.neigh_ag = self.AG(self.H, node_idx=self.node_idx)
         
         self.A_expanded = self.A.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size, self.h_size)
         self.B_expanded = self.B.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size, self.n_features)

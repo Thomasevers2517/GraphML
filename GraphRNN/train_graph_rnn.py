@@ -13,7 +13,8 @@ if __name__ == "__main__":
     epi_dataset = "data_epi/epidemiology.csv"
     epi_dates = ["2020-06-09", "2020-06-10", "2020-06-11", "2020-06-12",
                  "2020-06-13", "2020-06-14", "2020-06-15", "2020-06-16",
-                 "2020-06-17", "2020-06-18"
+                
+                 
 
 
                  ]
@@ -35,14 +36,14 @@ if __name__ == "__main__":
 
     
     data_sampler = GraphRNN_DataSampler(data_set, input_hor=input_hor, pred_hor=pred_hor)
-    data_loader = torch.utils.data.DataLoader(data_set, batch_size=20, sampler=data_sampler, num_workers=3)
+    data_loader = torch.utils.data.DataLoader(data_set, batch_size=1, sampler=data_sampler, num_workers=3)
     
 
     model  = Graph_RNN(n_nodes = data_set.n_nodes, n_features = data_set.n_features, h_size = 10, f_out_size =10, device=device)
     criterion = torch.nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0010)
 
-    torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(False)
 
     model.to(device)
 
@@ -67,12 +68,11 @@ if __name__ == "__main__":
             
             # print(f"output: {output}")
             # print(f"target_node_data: {target_node_data}")
-            
-            print("Backward pass")
-  
-            loss = criterion(output[:,-1,:,:], target_node_data)
+              
+            loss = criterion(output[:,-pred_hor:,:,:], target_node_data[:,:pred_hor,:,:])
             loss += 0.01 * criterion(output[:,:-1,:,:], input_node_data[:,:,:])
             optimizer.zero_grad()
+            
             print("Backward pass")
             loss.backward()
             optimizer.step()

@@ -174,6 +174,11 @@ class Preprocessor:
 
         return pd.concat(timesteps, ignore_index=True), pd.concat(self.epidemiology_timesteps)
 
+    def get_data_for_graphRNN(self): 
+        flow = self.flow
+        epidemiology_timesteps = self.epidemiology_timesteps
+        return flow, epidemiology_timesteps
+    
 def draw_network(data, weight_name='visitor_flows', node_size=1, line_width_mod=0.1):
     # initialize plot
     fig, ax = plt.subplots()

@@ -16,103 +16,118 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         self.pred_hor = pred_hor
         
         if fake_data:
-            self.n_time = 59
-            self.n_nodes = 4
-            self.n_edges = 15
-            self.n_features = 1
-            self.node_data = torch.randn((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32)
-
-            fake_idx = torch.randint(0, 10000, (self.n_nodes,))
-            self.edge_weights = torch.zeros((self.n_time, self.n_edges, 3), dtype=torch.float32)
-
-            for time in range(self.n_time):
-                for node in range(self.n_edges):
-                    origin = torch.randint(0, self.n_nodes, (1,)).item()
-                    destination = torch.randint(0, self.n_nodes, (1,)).item()
-                    if time == 0:  
-                        self.edge_weights[time, node, 0] = fake_idx[origin]
-                        self.edge_weights[time, node, 1] = fake_idx[destination]
-                        self.edge_weights[time, node, 2] = (torch.rand((1,)).item()-0.5)
-                    else:
-                        self.edge_weights[time, node, 0] = fake_idx[origin]
-                        self.edge_weights[time, node, 1] = fake_idx[destination]
-                        self.edge_weights[time, node, 2] = self.edge_weights[time-1, node, 2] + 0.1*(torch.rand((1,)).item() - 0.5)
-                for node in range(self.n_nodes):
-                    if time == 0:
-                        self.node_data[time, node, 0] = torch.rand((1,)).item()-0.5
-                    else:
-                        self.node_data[time, node, 0] = self.node_data[time-1, node, 0] + 0.1*(torch.rand((1,)).item() - 0.5)
-            return
+            self.generate_fake_data()
         
         preprocessor = Preprocessor(flow_dataset, epi_dataset, epi_dates, plottable=True)
-        kron_flow_df, signals_df = preprocessor.disjoint_manual_kronecker()
+        flow_df, signals_df = preprocessor.get_data_for_graphRNN()
+        print(f"Flow data shape: {flow_df.head()}")
+        print(f"Signals[0] data shape: {signals_df[0].head()}")
     
-        self.n_time = signals_df['date'].nunique()
-        self.dates = signals_df['date'].unique().tolist()
-        self.raw_node_ids = signals_df['geoid_o'].unique().tolist()
-        self.n_edges = len(kron_flow_df)
-        self.n_nodes = len(signals_df['geoid_o'].unique())
-        
-        self.n_features = 1
-        
-        self.edge_weights = torch.zeros((self.n_time, self.n_edges, 3), dtype=torch.float32)
+        self.n_time = len(signals_df)
 
-        self.n_nodes = 0
-        self.node_ids= []
+        self.prev_node_ids = signals_df[0]['geoid_o'].unique().tolist()
+        self.prev_node_ids.sort()
         
-        self.pop_thresh = 10
-        for j in tqdm(range(self.n_edges)):
-            pop_flow = kron_flow_df.iloc[j]['pop_flows']
+        for i in range(self.n_time):
+            self.node_ids =  signals_df[i]['geoid_o'].unique().tolist()
+            self.node_ids.sort()
+            assert self.prev_node_ids == self.node_ids 
+            self.prev_node_ids = self.node_ids
             
-            if pop_flow <= self.pop_thresh:
-                continue
-            
-            origin = kron_flow_df.iloc[j]['geoid_o']
-            if origin not in self.raw_node_ids:
-                continue
-            
-            destination = kron_flow_df.iloc[j]['geoid_d']
-            if destination not in self.raw_node_ids:
-                continue
-            if int(origin) ==0 or int(destination) == 0:
-                print(f"origin: {origin}, destination: {destination}")
-                continue
-            self.node_ids.append(origin)
-            self.node_ids.append(destination)
-            
-            self.edge_weights[0][self.n_nodes ][0] = origin
-            self.edge_weights[0][self.n_nodes ][1] = destination
-            self.edge_weights[0][self.n_nodes ][2] = pop_flow
-            self.n_nodes  += 1
-            # if self.edge_weights[0][j][2] <= 1:
-            #     self.edge_weights[0][j][2] = 0
-            
-        self.node_ids =  list(set(self.node_ids))
-        self.node_data = torch.zeros((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32) 
-               
-        self.edge_weights = self.edge_weights[0].repeat(self.n_time, 1, 1)
-        self.edge_weights = self.edge_weights.float()
-        
-        index = pd.MultiIndex.from_product([self.dates, self.node_ids], names=['date', 'geoid_o'])
-        node_data_df = pd.DataFrame(0, index=index, columns=['new_confirmed'])
-        signals_indexed = signals_df.set_index(['date', 'geoid_o'])
-        node_data_df.update(signals_indexed['new_confirmed'])
-        node_data_array = node_data_df.unstack(level='geoid_o').values
-        node_data_array = np.expand_dims(node_data_array, axis=2)
-
-        self.node_data = torch.tensor(node_data_array, dtype=torch.float32)
-        print(f"node_data: {self.node_data.shape}")
-        print(f"edge_weights: {self.edge_weights.shape}")
-        print("=====================================")
-        self.node_ids_from_edges = torch.cat((self.edge_weights[:, :, 0].unique(), self.edge_weights[:, :, 1].unique())).unique().tolist()
+        self.node_ids_from_edges = torch.cat((torch.tensor(flow_df['geoid_o'].unique()), torch.tensor(flow_df['geoid_d'].unique()))).unique().tolist()
         self.node_ids_from_edges.sort()
-        self.node_ids.sort()
         if self.node_ids != self.node_ids_from_edges:
-            num_equal_elements = len(set(self.node_ids) & set(self.node_ids_from_edges))
-            print(f"Number of equal elements: {num_equal_elements}")
-            print(f"Node IDs from edges: {self.node_ids_from_edges[num_equal_elements -10: num_equal_elements + 10]}")
-            raise ValueError(f"Node ID lists do not contain the same nodes.  Node IDs from edges: {self.node_ids_from_edges[:10]}, Node IDs from signals: {self.node_ids[:10]}. Sizes: {len(self.node_ids_from_edges)}, {len(self.node_ids)}")
+            raise ValueError(f"Node ID lists do not contain the same nodes.  Node IDs from edges: {self.node_ids_from_edges[:10]}, Node IDs from signals: {self.node_ids[:10]}. Sizes: {len(self.node_ids_from_edges)}, {len(self.node_ids)}")    
+        self.n_nodes = len(self.node_ids)
+        
+        print(f"Number of time steps: {self.n_time}")
+        print(f"Number of unique nodes with features: {len(self.node_ids)}")
+        self.n_features = 1
+        self.node_id2idx = {node_id: idx for idx, node_id in enumerate(self.node_ids)}
+        
+        self.edge_weights =  self.calc_edge_weights(flow_df)
+        self.node_data = self.calc_node_data(signals_df)
+        
+        check_data = True   
+        if check_data:
+            print(f"node_data: {self.node_data.shape}")
+            print(f"edge_weights: {self.edge_weights.shape}")
+            print("=====================================")
+            self.node_ids_from_edges = torch.cat((self.edge_weights[:, :, 0].unique(), self.edge_weights[:, :, 1].unique())).unique().tolist()
+            self.node_ids_from_edges.sort()
+            self.node_ids.sort()
+            print(f"Number of unique nodes from final edges: {len(self.node_ids_from_edges)}")
+            print(f"Number of unique nodes from signals: {len(self.node_ids)}")
+            
+            if self.node_ids != self.node_ids_from_edges:
+                num_equal_elements = len(set(self.node_ids) & set(self.node_ids_from_edges))
+                print(f"Number of equal elements: {num_equal_elements}")
+                print(f"Node IDs from edges: {self.node_ids_from_edges[num_equal_elements -10: num_equal_elements + 10]}")
+                raise ValueError(f"Node ID lists do not contain the same nodes.  Node IDs from edges: {self.node_ids_from_edges[:10]}, Node IDs from signals: {self.node_ids[:10]}. Sizes: {len(self.node_ids_from_edges)}, {len(self.node_ids)}")
+            print("Node IDs match between edges and signals")
+            print("=====================================")
+            print("Sparsity of node data: ", self.node_data.eq(0).sum().item() / self.node_data.numel())
+            print("Sparsity of edge weights: ", self.edge_weights.eq(0).sum().item() / self.edge_weights.numel())
+            
+    def calc_edge_weights(self, flow_df):
+        n_raw_edges = len(flow_df)
+        edge_weights = torch.zeros((self.n_time, n_raw_edges, 3), dtype=torch.float32)
+        
+        self.n_edges = 0
+        for j in tqdm(range(n_raw_edges)):
+            pop_flow = flow_df.iloc[j]['pop_flows']
+            
+            origin = flow_df.iloc[j]['geoid_o']
+            if origin not in self.node_ids:
+                raise ValueError(f"Origin {origin} not in node_ids")
+                continue
+            
+            destination = flow_df.iloc[j]['geoid_d']
+            if destination not in self.node_ids:
+                raise ValueError(f"Destination {destination} not in node_ids")
+                continue
 
+            edge_weights[0][self.n_edges ][0] = origin
+            edge_weights[0][self.n_edges ][1] = destination
+            edge_weights[0][self.n_edges ][2] = pop_flow
+            self.n_edges += 1
+
+        edge_weights = edge_weights[0].repeat(self.n_time, 1, 1)
+        
+        edge_weights = edge_weights.float()  
+        
+        return edge_weights
+    
+    def calc_node_data(self, signals_df):
+        # Initialize node_data tensor
+        node_data = torch.zeros((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32)
+        
+        # Create a DataFrame to store all the data together
+        all_data = pd.DataFrame()
+        
+        for t, df in enumerate(signals_df):
+            df['time'] = t
+            all_data = pd.concat([all_data, df[['time', 'geoid_o', 'new_confirmed']]], axis=0)
+        
+        # Create a multi-index DataFrame with all dates and node_ids
+        index = pd.MultiIndex.from_product([range(self.n_time), self.node_ids], names=['time', 'geoid_o'])
+        node_data_df = pd.DataFrame(0, index=index, columns=['new_confirmed'])
+        
+        # Set the index of the combined DataFrame
+        all_data.set_index(['time', 'geoid_o'], inplace=True)
+        
+        # Update the multi-index DataFrame with the combined DataFrame
+        node_data_df.update(all_data)
+        
+        # Unstack the DataFrame to convert it to the desired shape
+        node_data_array = node_data_df.unstack(level='geoid_o').values
+        
+        # Expand dimensions and convert to tensor
+        node_data_array = np.expand_dims(node_data_array, axis=2)
+        node_data = torch.tensor(node_data_array, dtype=torch.float32)
+        
+        return node_data
+    
     def __len__(self):
         return self.n_time - (self.input_hor + self.pred_hor) + 1
     
@@ -159,6 +174,34 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         plt.tight_layout()
         plt.show()
 
+    def generate_fake_data(self):
+        self.n_time = input_hor + pred_hor + 6
+        self.n_nodes = 20
+        self.n_edges = 40
+        self.n_features = 1
+        self.node_data = torch.randn((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32)
+
+        fake_idx = torch.randint(0, 10000, (self.n_nodes,))
+        self.edge_weights = torch.zeros((self.n_time, self.n_edges, 3), dtype=torch.float32)
+
+        for time in range(self.n_time):
+            for node in range(self.n_edges):
+                origin = torch.randint(0, self.n_nodes, (1,)).item()
+                destination = torch.randint(0, self.n_nodes, (1,)).item()
+                if time == 0:  
+                    self.edge_weights[time, node, 0] = fake_idx[origin]
+                    self.edge_weights[time, node, 1] = fake_idx[destination]
+                    self.edge_weights[time, node, 2] = (torch.rand((1,)).item()-0.5)
+                else:
+                    self.edge_weights[time, node, 0] = fake_idx[origin]
+                    self.edge_weights[time, node, 1] = fake_idx[destination]
+                    self.edge_weights[time, node, 2] = self.edge_weights[time-1, node, 2] + 0.1*(torch.rand((1,)).item() - 0.5)
+            for node in range(self.n_nodes):
+                if time == 0:
+                    self.node_data[time, node, 0] = torch.rand((1,)).item()-0.5
+                else:
+                    self.node_data[time, node, 0] = self.node_data[time-1, node, 0] + 0.1*(torch.rand((1,)).item() - 0.5)
+        return
 
 class GraphRNN_DataSampler(torch.utils.data.Sampler):
     def __init__(self, dataset, input_hor, pred_hor):
