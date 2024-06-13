@@ -56,23 +56,33 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         self.n_features = 1
         
         self.edge_weights = torch.zeros((self.n_time, self.n_edges, 3), dtype=torch.float32)
-  
 
         self.n_nodes = 0
         self.node_ids= []
+        
+        self.pop_thresh = 10
         for j in tqdm(range(self.n_edges)):
+            pop_flow = kron_flow_df.iloc[j]['pop_flows']
+            
+            if pop_flow <= self.pop_thresh:
+                continue
+            
             origin = kron_flow_df.iloc[j]['geoid_o']
-            destination = kron_flow_df.iloc[j]['geoid_d']
             if origin not in self.raw_node_ids:
                 continue
+            
+            destination = kron_flow_df.iloc[j]['geoid_d']
             if destination not in self.raw_node_ids:
+                continue
+            if int(origin) ==0 or int(destination) == 0:
+                print(f"origin: {origin}, destination: {destination}")
                 continue
             self.node_ids.append(origin)
             self.node_ids.append(destination)
             
-            self.edge_weights[0][self.n_nodes ][0] = kron_flow_df.iloc[j]['geoid_o']
-            self.edge_weights[0][self.n_nodes ][1] = kron_flow_df.iloc[j]['geoid_d']
-            self.edge_weights[0][self.n_nodes ][2] = kron_flow_df.iloc[j]['pop_flows']
+            self.edge_weights[0][self.n_nodes ][0] = origin
+            self.edge_weights[0][self.n_nodes ][1] = destination
+            self.edge_weights[0][self.n_nodes ][2] = pop_flow
             self.n_nodes  += 1
             # if self.edge_weights[0][j][2] <= 1:
             #     self.edge_weights[0][j][2] = 0
