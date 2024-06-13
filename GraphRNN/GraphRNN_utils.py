@@ -49,22 +49,37 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
     
         self.n_time = signals_df['date'].nunique()
         self.dates = signals_df['date'].unique().tolist()
-        self.node_ids = signals_df['geoid_o'].unique().tolist()
+        self.raw_node_ids = signals_df['geoid_o'].unique().tolist()
         self.n_edges = len(kron_flow_df)
         self.n_nodes = len(signals_df['geoid_o'].unique())
         
         self.n_features = 1
         
         self.edge_weights = torch.zeros((self.n_time, self.n_edges, 3), dtype=torch.float32)
-        self.node_data = torch.zeros((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32)
+  
 
+        self.n_nodes = 0
+        self.node_ids= []
         for j in tqdm(range(self.n_edges)):
-            self.edge_weights[0][j][0] = kron_flow_df.iloc[j]['geoid_o']
-            self.edge_weights[0][j][1] = kron_flow_df.iloc[j]['geoid_d']
-            self.edge_weights[0][j][2] = kron_flow_df.iloc[j]['pop_flows']
+            origin = kron_flow_df.iloc[j]['geoid_o']
+            destination = kron_flow_df.iloc[j]['geoid_d']
+            if origin not in self.raw_node_ids:
+                continue
+            if destination not in self.raw_node_ids:
+                continue
+            self.node_ids.append(origin)
+            self.node_ids.append(destination)
+            
+            self.edge_weights[0][self.n_nodes ][0] = kron_flow_df.iloc[j]['geoid_o']
+            self.edge_weights[0][self.n_nodes ][1] = kron_flow_df.iloc[j]['geoid_d']
+            self.edge_weights[0][self.n_nodes ][2] = kron_flow_df.iloc[j]['pop_flows']
+            self.n_nodes  += 1
             # if self.edge_weights[0][j][2] <= 1:
             #     self.edge_weights[0][j][2] = 0
-                
+            
+        self.node_ids =  list(set(self.node_ids))
+        self.node_data = torch.zeros((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32) 
+               
         self.edge_weights = self.edge_weights[0].repeat(self.n_time, 1, 1)
         self.edge_weights = self.edge_weights.float()
         

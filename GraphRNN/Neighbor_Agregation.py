@@ -24,7 +24,7 @@ class Neighbor_Aggregation(torch.nn.Module):
             self.H_adj = self.calc_H_adj(edge_weights)
         else:
             self.CONST_EDGE_WEIGHT = False
-        self.node_idx = torch.cat([edge_weights[:, :, 0].unique(), edge_weights[:, :, 1].unique())).unique().tolist()
+        self.node_idx = torch.cat((edge_weights[:, :, 0].unique(), edge_weights[:, :, 1].unique())).unique().tolist()
         
     def forward (self, H,  edge_weights = None, node_idx = None):
         adj_matrix = self.calc_adj(edge_weights)
