@@ -31,7 +31,8 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         for i in range(self.n_time):
             self.node_ids =  signals_df[i]['geoid_o'].unique().tolist()
             self.node_ids.sort()
-            assert self.prev_node_ids == self.node_ids 
+            if self.node_ids != self.prev_node_ids:
+                raise ValueError(f"Node IDs do not match between time steps {i} and {i-1}. Time step {i-1} has {len(self.prev_node_ids)} nodes, time step {i} has {len(self.node_ids)} nodes")
             self.prev_node_ids = self.node_ids
             
         self.node_ids_from_edges = torch.cat((torch.tensor(flow_df['geoid_o'].unique()), torch.tensor(flow_df['geoid_d'].unique()))).unique().tolist()

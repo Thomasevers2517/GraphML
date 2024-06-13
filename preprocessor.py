@@ -40,11 +40,17 @@ class Preprocessor:
         self.epidemiology_timesteps = [self.epi_extract_date(date) for date in epi_dates]
         self.process_population_flow()
 
-        # Drop counties that are not included in both datasets
-        intersection = reduce(np.intersect1d, [self.flow['geoid_o'], *[timestep['geoid_o'] for timestep in self.epidemiology_timesteps]])
+        # Ensure nodes exist in all time steps
+        all_epidemiology_geoids = reduce(np.intersect1d, [timestep['geoid_o'].unique() for timestep in self.epidemiology_timesteps])
+        all_flow_geoids = np.union1d(self.flow['geoid_o'].unique(), self.flow['geoid_d'].unique())
+        intersection = np.intersect1d(all_epidemiology_geoids, all_flow_geoids)
+        
         for i, epi in enumerate(self.epidemiology_timesteps):
             self.epidemiology_timesteps[i] = epi[epi['geoid_o'].isin(intersection)]
-        self.flow = self.flow[self.flow['geoid_o'].isin(intersection)]
+        
+        self.flow = self.flow[self.flow['geoid_o'].isin(intersection) & self.flow['geoid_d'].isin(intersection)]
+
+
 
     def normalize(self, column):
         weights = self.flow[column]
