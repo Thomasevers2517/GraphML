@@ -17,6 +17,7 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         
         if fake_data:
             self.generate_fake_data()
+            return
         
         preprocessor = Preprocessor(flow_dataset, epi_dataset, epi_dates, plottable=True)
         flow_df, signals_df = preprocessor.get_data_for_graphRNN()
@@ -148,7 +149,7 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
             raise ValueError(f"Target node data shape {target_node_data.shape} does not match prediction horizon {self.pred_hor}")
         
         return input_edge_weights, input_node_data, target_edge_weights, target_node_data
-    def visualize(self, index):
+    def visualize(self, index, node_slice):
         if index >= len(self):
             raise ValueError(f"Index {index} out of bounds for dataset of length {len(self)}")
         
@@ -176,9 +177,9 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         plt.show()
 
     def generate_fake_data(self):
-        self.n_time = input_hor + pred_hor + 6
-        self.n_nodes = 20
-        self.n_edges = 40
+        self.n_time = self.input_hor + self.pred_hor + 6
+        self.n_nodes = 3000
+        self.n_edges = 15000
         self.n_features = 1
         self.node_data = torch.randn((self.n_time, self.n_nodes, self.n_features), dtype=torch.float32)
 

@@ -61,9 +61,7 @@ class Neighbor_Aggregation(torch.nn.Module):
         indices = []
         values = []
 
-
-
-        for batch in tqdm(range(batch_size), desc="Calculating adjacency matrices", leave=False):
+        for batch in range(batch_size):
             batch_edges = edge_weights[batch]
             
             node1 = batch_edges[:, 0].int().to(self.device)
@@ -86,6 +84,5 @@ class Neighbor_Aggregation(torch.nn.Module):
 
         # Create the sparse adjacency matrix
         self.adj_matrix = torch.sparse_coo_tensor(indices, values, (batch_size, self.n_nodes, self.n_nodes), dtype=torch.float32, device=self.device)
-        print(f"Adjacency matrix shape: {self.adj_matrix.shape}")
         return 1
         

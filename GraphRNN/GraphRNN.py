@@ -22,12 +22,14 @@ class Graph_RNN(torch.nn.Module):
         self.h_size = h_size
         self.f_out_size = f_out_size
         
-        self.A = torch.nn.parameter.Parameter(torch.randn(h_size, h_size), requires_grad=True)
-        self.B = torch.nn.parameter.Parameter(torch.randn(h_size, n_features),  requires_grad=True)
-        self.C = torch.nn.parameter.Parameter(torch.randn(h_size, f_out_size),  requires_grad=True)
-        self.D = torch.nn.parameter.Parameter(torch.randn(h_size),  requires_grad=True)
+        self.init_H = torch.nn.parameter.Parameter(torch.randn(h_size)* 0.05, requires_grad=True)
         
-        self.E = torch.nn.parameter.Parameter(torch.randn(n_features, h_size), requires_grad=True)
+        self.A = torch.nn.parameter.Parameter(torch.randn(h_size, h_size) * 0.05, requires_grad=True)
+        self.B = torch.nn.parameter.Parameter(torch.randn(h_size, n_features)* 0.05,  requires_grad=True)
+        self.C = torch.nn.parameter.Parameter(torch.randn(h_size, f_out_size)* 0.05,  requires_grad=True)
+        self.D = torch.nn.parameter.Parameter(torch.randn(h_size)* 0.05,  requires_grad=True)
+        
+        self.E = torch.nn.parameter.Parameter(torch.randn(n_features, h_size)* 0.05, requires_grad=True)
 
 
         self.AG = Neighbor_Aggregation(n_nodes, h_size, f_out_size, edge_weights= None, device=self.device)
@@ -57,10 +59,10 @@ class Graph_RNN(torch.nn.Module):
             self.node_idx = torch.zeros(self.n_nodes)
             self.node_idx = edge_weights[0, :, 0].unique() 
         self.H_prev = torch.zeros((x_in.shape[0], self.n_nodes, self.h_size), dtype=torch.float32, device=self.device)    
-        self.H = torch.zeros((x_in.shape[0], self.n_nodes, self.h_size), dtype=torch.float32, device=self.device)
+        self.H = self.init_H.clone().unsqueeze(0).unsqueeze(0).expand(x_in.shape[0], self.n_nodes, self.h_size)
 
         x_pred = []
-        for i in tqdm(range(x_in.shape[1] + pred_hor), desc="Forward pass"):
+        for i in range(x_in.shape[1] + pred_hor):
             
             if i < x_in.shape[1]:
                 x_pred.append( self.forward_step(x_in[:, i, :], edge_weights=edge_weights[:,i,:,:]) )
@@ -69,8 +71,7 @@ class Graph_RNN(torch.nn.Module):
                 x_pred.append( self.forward_step(x_pred[-1], edge_weights=edge_weights[:,x_in.shape[1]-1,:,:]) )
                 
         x_out  = torch.stack(x_pred, dim=1).to(self.device)
-        print(x_out.shape)
-        
+
         return x_out
         
     
@@ -99,6 +100,7 @@ class Graph_RNN(torch.nn.Module):
 
         # self.H = torch.tanh(AH + BX + CAG + self.D_expanded) 
         # Tanh saturates the gradients, so we use ReLU instead
-        self.H = torch.relu(AH + BX + CAG + self.D_expanded)
+        self.H = torch.tanh(self.H_prev + AH + BX + CAG + self.D_expanded)
         x_out = torch.einsum('bnij,bnj->bni', self.E_expanded, self.H)
+        self.H_prev = self.H
         return x_out
