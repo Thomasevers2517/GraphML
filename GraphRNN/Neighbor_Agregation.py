@@ -2,7 +2,7 @@
 import torch
 import torch.sparse as sparse
 from tqdm import tqdm
-
+import torch.nn as nn
 dropout=0.2
 
 class Neighbor_Aggregation(torch.nn.Module):
