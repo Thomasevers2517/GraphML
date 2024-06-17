@@ -1,3 +1,5 @@
 *.swp
 
 data_epi/epidemiology.csv
+*.pth
+*log*
