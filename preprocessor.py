@@ -40,11 +40,17 @@ class Preprocessor:
         self.epidemiology_timesteps = [self.epi_extract_date(date) for date in epi_dates]
         self.process_population_flow()
 
-        # Drop counties that are not included in both datasets
-        intersection = reduce(np.intersect1d, [self.flow['geoid_o'], *[timestep['geoid_o'] for timestep in self.epidemiology_timesteps]])
+        # Ensure nodes exist in all time steps
+        all_epidemiology_geoids = reduce(np.intersect1d, [timestep['geoid_o'].unique() for timestep in self.epidemiology_timesteps])
+        all_flow_geoids = np.union1d(self.flow['geoid_o'].unique(), self.flow['geoid_d'].unique())
+        intersection = np.intersect1d(all_epidemiology_geoids, all_flow_geoids)
+        
         for i, epi in enumerate(self.epidemiology_timesteps):
             self.epidemiology_timesteps[i] = epi[epi['geoid_o'].isin(intersection)]
-        self.flow = self.flow[self.flow['geoid_o'].isin(intersection)]
+        
+        self.flow = self.flow[self.flow['geoid_o'].isin(intersection) & self.flow['geoid_d'].isin(intersection)]
+
+
 
     def normalize(self, column):
         weights = self.flow[column]
@@ -174,6 +180,11 @@ class Preprocessor:
 
         return pd.concat(timesteps, ignore_index=True), pd.concat(self.epidemiology_timesteps)
 
+    def get_data_for_graphRNN(self): 
+        flow = self.flow
+        epidemiology_timesteps = self.epidemiology_timesteps
+        return flow, epidemiology_timesteps
+    
 def draw_network(data, weight_name='visitor_flows', node_size=1, line_width_mod=0.1):
     # initialize plot
     fig, ax = plt.subplots()
@@ -208,10 +219,6 @@ if __name__ == "__main__":
 
     graph_df = preprocessor.combined_manual_kronecker()
     kron_flow_df, signals_df = preprocessor.disjoint_manual_kronecker()
-
-    print(graph_df.head(5))
-    print(graph_df.sample(5))
-    print(graph_df.tail(5))
 
     print(kron_flow_df.shape)
     print(signals_df.shape)
