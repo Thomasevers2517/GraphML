@@ -44,15 +44,23 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             optimizer.zero_grad()
             loss.backward()
             for param_name, param in model.named_parameters():
-                parameter_mag[param_name].append(param.abs().mean().item())
-                gradients["pre_limit"][param_name].append(param.grad.norm().item())
+                try:
+                    parameter_mag[param_name].append(param.abs().mean().item())
+                    gradients["pre_limit"][param_name].append(param.grad.norm().item())
+                except Exception as e:
+                    parameter_mag[param_name].append(param.abs().mean().item())
+                    gradients["pre_limit"][param_name].append(0)
+                     
             hidden_state_mag = model.H.abs().mean().item()
             hidden_states.append(hidden_state_mag)
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
             
             for param_name, param in model.named_parameters():
-                gradients["post_limit"][param_name].append(param.grad.norm().item())
+                try:
+                    gradients["post_limit"][param_name].append(param.grad.norm().item())
+                except:
+                    gradients["post_limit"][param_name].append(0)
 
             optimizer.step()
             epoch_loss += loss.item()
@@ -75,13 +83,14 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             json.dump(losses, f)
     return losses, parameter_mag, gradients, hidden_states
 
-config = {  "n_epochs": 800,
+config = {  "n_epochs": 100,
             "num_dates": 9,
             "input_hor": 7,
             "pred_hor": 1,
             "h_size": 70,
             "batch_size": 5,
             "lr": 0.0015,
+            "use_neighbors": False,
             
          }
 
@@ -126,7 +135,8 @@ if __name__ == "__main__":
                        f_out_size =config["h_size"],
                        fixed_edge_weights = input_edge_weights[0,0,:,:],
                        device=device,
-                       dtype=torch.float32)
+                       dtype=torch.float32,
+                       use_neighbors=config["use_neighbors"])
     
     
 
