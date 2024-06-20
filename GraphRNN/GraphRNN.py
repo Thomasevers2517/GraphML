@@ -36,7 +36,7 @@ class Graph_RNN(torch.nn.Module):
         self.E = torch.nn.parameter.Parameter(torch.randn(n_features, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         
         #init as eye. Network will start off predicting the input
-        self.F = torch.nn.parameter.Parameter(torch.eye(n_features, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
+        self.F = torch.nn.parameter.Parameter(torch.eye(n_features, device=self.device, dtype=self.dtype) ,  requires_grad=True)
         
         self.G = torch.nn.parameter.Parameter(torch.randn(n_features, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         

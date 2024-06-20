@@ -50,10 +50,22 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         self.edge_weights =  self.calc_edge_weights(flow_df)
         self.node_data = self.calc_node_data(signals_df)
         
+        mean_edge_weight = self.edge_weights[:, :, 2].mean().item()
+        std_dev_edge_weight = self.edge_weights[:, :, 2].std().item()
+        self.edge_weights[:, :, 2] = (self.edge_weights[:, :, 2] - mean_edge_weight) / std_dev_edge_weight
+
+        for feature in range(self.n_features):
+            mean_node_data = self.node_data[:, :, feature].mean().item()
+            std_dev_node_data = self.node_data[:, :, feature].std().item()
+            self.node_data[:, :, feature] = (self.node_data[:, :, feature] - mean_node_data) / std_dev_node_data
+        
         check_data = True   
         if check_data:
-            print(f"node_data: {self.node_data.shape}")
-            print(f"edge_weights: {self.edge_weights.shape}")
+            print(f"node_data: {self.node_data.shape}  {self.node_data.dtype} || {self.node_data[:, :, 0].mean().item()} {self.node_data[:, :, 0].std().item()}")
+            print(f"edge_weights: {self.edge_weights.shape} {self.edge_weights.dtype} || {self.edge_weights[:, :, 2].mean().item()} {self.edge_weights[:, :, 2].std().item()}")
+            print("=====================================")
+            print(f"Node sample: {self.node_data[0, :5, 0]}")
+            print(f"Edge sample: {self.edge_weights[0, :5, :]}")
             print("=====================================")
             self.node_ids_from_edges = torch.cat((self.edge_weights[:, :, 0].unique(), self.edge_weights[:, :, 1].unique())).unique().tolist()
             self.node_ids_from_edges.sort()
