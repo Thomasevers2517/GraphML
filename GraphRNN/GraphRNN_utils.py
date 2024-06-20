@@ -161,7 +161,8 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
             raise ValueError(f"Target node data shape {target_node_data.shape} does not match prediction horizon {self.pred_hor}")
         
         return input_edge_weights, input_node_data, target_edge_weights, target_node_data
-    def visualize(self, index, node_slice):
+    
+    def visualize(self, index, num_nodes=5, num_edges=5):
         if index >= len(self):
             raise ValueError(f"Index {index} out of bounds for dataset of length {len(self)}")
         
@@ -171,7 +172,8 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
 
         # Plot node data
         axes[0].set_title("Node Data Over Time")
-        for node in range(self.n_nodes):
+
+        for node in range(num_nodes):
             axes[0].plot(input_node_data[:, node, 0].numpy(), label=f"Node {node}")
         axes[0].legend()
         axes[0].set_xlabel("Time Step")
@@ -179,7 +181,7 @@ class GraphRNN_dataset(torch.utils.data.Dataset):
         
         # Plot edge weights
         axes[1].set_title("Edge Weights Over Time")
-        for edge in range(self.n_edges):
+        for edge in range(num_edges):
             axes[1].plot(input_edge_weights[:, edge, 2].numpy(), label=f"Edge {edge}")
         axes[1].legend()
         axes[1].set_xlabel("Time Step")
@@ -254,7 +256,7 @@ if __name__ == '__main__':
 
     # data_sampler = GraphRNN_DataSampler(data_set, input_hor=input_hor, pred_hor=pred_hor)
     # data_loader = torch.utils.data.DataLoader(data_set, batch_size=3, sampler=data_sampler, num_workers=3)
-    data_loader = torch.utils.data.DataLoader(data_set, batch_size=3, num_workers=3)
+    data_loader = torch.utils.data.DataLoader(data_set, batch_size=2, num_workers=0)
 
     
     for i in range(10):

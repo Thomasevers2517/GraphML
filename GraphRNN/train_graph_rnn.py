@@ -10,9 +10,13 @@ import matplotlib.pyplot as plt
 import json
 import torch.profiler
 
-def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =10, save=None):
+def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =10, save_name=None):
     losses = []
     parameter_mag = {param_name: [] for param_name, param in model.named_parameters()}
+    gradients = {}
+    gradients["pre_limit"] = {param_name: [] for param_name, param in model.named_parameters()}
+    gradients["post_limit"] = {param_name: [] for param_name, param in model.named_parameters()}
+    hidden_states = []
     for epoch in range(n_epochs):
         epoch_loss = 0
         batch_num = 0
@@ -20,8 +24,8 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             if batch_num==1 and epoch == 1:
                 # prof.step()
                 pass
-            for param_name, param in model.named_parameters():
-                parameter_mag[param_name].append(param.abs().mean().item())
+
+            
             input_hor = input_node_data.shape[1]
             input_edge_weights = input_edge_weights.to(device)
             input_node_data = input_node_data.to(device)
@@ -39,6 +43,17 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             
             optimizer.zero_grad()
             loss.backward()
+            for param_name, param in model.named_parameters():
+                parameter_mag[param_name].append(param.abs().mean().item())
+                gradients["pre_limit"][param_name].append(param.grad.norm().item())
+            hidden_state_mag = model.H.abs().mean().item()
+            hidden_states.append(hidden_state_mag)
+            
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+            
+            for param_name, param in model.named_parameters():
+                gradients["post_limit"][param_name].append(param.grad.norm().item())
+
             optimizer.step()
             epoch_loss += loss.item()
             batch_num += 1
@@ -53,20 +68,20 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
         print(f"Input: {input_node_data[0, :, :5, 0]} ")
         print(f"$ Output: {output[0, -pred_hor:, :5, 0]}")
         print(f"$ Target: {target_node_data[0, :, :5, 0]}")
-    if save is not None:
-        save_string = f"{save}_epoch_{epoch}_lr_{optimizer.param_groups[0]['lr']}_batch_{data_loader.batch_size} _pred_{pred_hor}_input_{input_hor}"
+    if save_name is not None:
+        save_string = f"{save_name}_epoch_{epoch}_lr_{optimizer.param_groups[0]['lr']}_batch_{data_loader.batch_size} _pred_{pred_hor}_input_{input_hor}_num_dates_{len(data_loader)}_h_size_{model.h_size}"
         torch.save(model.state_dict(), f"models\model_state_dict_{save_string}.pth")
         with open(f"losses\losses_{save_string}.json", "w") as f:
             json.dump(losses, f)
-    return losses, parameter_mag
+    return losses, parameter_mag, gradients, hidden_states
 
-config = {  "n_epochs": 20000,
-            "num_dates": 20,
-            "input_hor": 1,
+config = {  "n_epochs": 800,
+            "num_dates": 9,
+            "input_hor": 7,
             "pred_hor": 1,
-            "h_size": 30,
+            "h_size": 70,
             "batch_size": 5,
-            "lr": 0.0045,
+            "lr": 0.0015,
             
          }
 
@@ -93,10 +108,12 @@ if __name__ == "__main__":
                                 input_hor=config["input_hor"],
                                 pred_hor=config["pred_hor"],
                                 fake_data=False)
-    # data_set.visualize(0)
+    visualize = False
+    if visualize:
+        data_set.visualize(0, num_nodes=5, num_edges=5)
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    
     # data_sampler = GraphRNN_DataSampler(data_set, input_hor=input_hor, pred_hor=pred_hor)
     data_loader = torch.utils.data.DataLoader(data_set, batch_size=config["batch_size"], pin_memory=True, num_workers=0, shuffle=True)
     
@@ -115,7 +132,7 @@ if __name__ == "__main__":
 
     criterion = torch.nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
-
+    learning_rate_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     torch.autograd.set_detect_anomaly(False)
 
@@ -141,7 +158,7 @@ if __name__ == "__main__":
             losses, parameter_mag = train(model, data_loader,
                                     criterion, optimizer,
                                     config["pred_hor"], device, n_epochs=config["n_epochs"],
-                                    save="model_state_dict.pth")
+                                    save_name="model_state_dict.pth")
             print("Finished training with profiling.")
             # Verify that the log directory is populated
         if os.listdir(log_dir):
@@ -149,10 +166,10 @@ if __name__ == "__main__":
         else:
             print(f"No log files found in {log_dir}")
     else:
-        losses, parameter_mag = train(model, data_loader,
+        losses, parameter_mag, gradients, hidden_state_mag = train(model, data_loader,
                         criterion, optimizer,
                         config["pred_hor"], device, n_epochs=config["n_epochs"],
-                        save="test")
+                        save_name="test")
 
 
     
@@ -165,18 +182,25 @@ if __name__ == "__main__":
     
     print("Plotting parameter magnitudes...")
     plt.figure()
-    plt.plot(parameter_mag["init_H"], label="init_H")
-    plt.plot(parameter_mag["A"], label="A")
-    plt.plot(parameter_mag["B"], label="B")
-    plt.plot(parameter_mag["C"], label="C")
-    plt.plot(parameter_mag["D"], label="D")
-    plt.plot(parameter_mag["E"], label="E")
-    plt.plot(parameter_mag["F"], label="F")
-    plt.plot(parameter_mag["G"], label="G")
+    for param_name, param_mag in parameter_mag.items():
+        plt.plot(param_mag, label=param_name)
+    plt.plot(hidden_state_mag, label="Hidden State")
     
     plt.xlabel("Iteration")
     plt.ylabel("Parameter Magnitude")
     # plt.yscale("log")
     plt.legend()
     plt.show()
+    
+    plt.figure()
+    for param_name, grad in gradients["pre_limit"].items():
+        plt.plot(grad, label=f"pre {param_name}" , linestyle="--")
+    for param_name, grad in gradients["post_limit"].items():
+        plt.plot(grad, label=f"post {param_name}")
+    plt.xlabel("Iteration")
+    plt.ylabel("Gradient Magnitude")
+    plt.legend()
+    plt.show()
+    print("Finished training run.")
+    
     

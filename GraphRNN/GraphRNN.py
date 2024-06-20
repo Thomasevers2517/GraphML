@@ -25,7 +25,7 @@ class Graph_RNN(torch.nn.Module):
         self.f_out_size = f_out_size
         print(f"n_nodes: {n_nodes}, n_features: {n_features}, h_size: {h_size}, f_out_size: {f_out_size}")
         
-        self.init_mag = 0.05
+        self.init_mag = 0.01
         self.init_H = torch.nn.parameter.Parameter(torch.randn(h_size, device=self.device, dtype=self.dtype)* self.init_mag   , requires_grad=True)
         
         self.A = torch.nn.parameter.Parameter(torch.randn(h_size, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
@@ -33,13 +33,27 @@ class Graph_RNN(torch.nn.Module):
         self.C = torch.nn.parameter.Parameter(torch.randn(h_size, f_out_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         self.D = torch.nn.parameter.Parameter(torch.randn(h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         
-        self.E = torch.nn.parameter.Parameter(torch.randn(n_features, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
-        
+        # self.E = torch.nn.parameter.Parameter(torch.randn(h_size, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
+        # self.E2 = torch.nn.parameter.Parameter(torch.randn(n_features, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         #init as eye. Network will start off predicting the input
         self.F = torch.nn.parameter.Parameter(torch.eye(n_features, device=self.device, dtype=self.dtype) ,  requires_grad=True)
         
         self.G = torch.nn.parameter.Parameter(torch.randn(n_features, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         
+        torch.nn.init.xavier_normal_(self.A)
+        torch.nn.init.xavier_normal_(self.B)
+        torch.nn.init.xavier_normal_(self.C)
+    
+        # torch.nn.init.xavier_normal_(self.E) 
+        # torch.nn.init.xavier_normal_(self.E2)
+
+        self.H2X_out_MLP = torch.nn.Sequential(
+            torch.nn.Linear(h_size, h_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(h_size, h_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(h_size, n_features)
+        )
         if self.fixed_edge_weights is not None:
             self.node_idx = self.fixed_edge_weights[:, 0].unique()
         else:
@@ -96,6 +110,7 @@ class Graph_RNN(torch.nn.Module):
         
     
     def forward_step(self, x_in, edge_weights=None):
+        batch_size = x_in.shape[0]
         if edge_weights is None:
             if self.fixed_edge_weights is None:
                 raise ValueError("Edge weights not provided. Provide edge weights to the forward pass or during initialization.")
@@ -105,7 +120,8 @@ class Graph_RNN(torch.nn.Module):
         self.B_expanded = self.B.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size, self.n_features)
         self.C_expanded = self.C.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size, self.f_out_size)
         self.D_expanded = self.D.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size)
-        self.E_expanded = self.E.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.n_features, self.h_size)
+        # self.E_expanded = self.E.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.h_size, self.h_size)
+        # self.E2_expanded = self.E2.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.n_features, self.h_size)
         self.F_expanded = self.F.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.n_features, self.n_features)
         self.G_expanded = self.G.unsqueeze(0).unsqueeze(1).expand(x_in.shape[0], self.n_nodes, self.n_features)
         # Perform matrix multiplications with explicit dimension specification using einsum
@@ -127,7 +143,7 @@ class Graph_RNN(torch.nn.Module):
         # self.H = torch.tanh(AH + BX + CAG + self.D_expanded) 
         # Tanh saturates the gradients, so we use ReLU instead
         self.H = self.H_prev + torch.tanh( AH + BX + CAG + self.D_expanded)
-        
-        x_out = torch.einsum('bnij,bnj->bni', self.E_expanded, self.H) + FX + self.G_expanded
+        self.H_out= self.H2X_out_MLP(self.H.view(batch_size*self.n_nodes, self.h_size)).view(batch_size, self.n_nodes, self.n_features)
+        x_out = self.H_out + FX + self.G_expanded
         self.H_prev = self.H
         return x_out
