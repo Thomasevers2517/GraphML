@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import json
 import torch.profiler
 
-def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =10, save_name=None):
+def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =10, save_name=None, max_grad_norm=1):
     losses = []
     parameter_mag = {param_name: [] for param_name, param in model.named_parameters()}
     gradients = {}
@@ -54,7 +54,7 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             hidden_state_mag = model.H.abs().mean().item()
             hidden_states.append(hidden_state_mag)
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             
             for param_name, param in model.named_parameters():
                 try:
@@ -83,14 +83,15 @@ def train(model, data_loader, criterion, optimizer, pred_hor, device, n_epochs =
             json.dump(losses, f)
     return losses, parameter_mag, gradients, hidden_states
 
-config = {  "n_epochs": 100,
+config = {  "n_epochs": 800,
             "num_dates": 9,
             "input_hor": 7,
             "pred_hor": 1,
-            "h_size": 70,
+            "h_size": 170,
             "batch_size": 5,
-            "lr": 0.0015,
-            "use_neighbors": False,
+            "lr": 0.0003,
+            "use_neighbors": True,
+            "max_grad_norm": 1,
             
          }
 
@@ -136,7 +137,8 @@ if __name__ == "__main__":
                        fixed_edge_weights = input_edge_weights[0,0,:,:],
                        device=device,
                        dtype=torch.float32,
-                       use_neighbors=config["use_neighbors"])
+                       use_neighbors=config["use_neighbors"]
+                       )
     
     
 
@@ -178,7 +180,9 @@ if __name__ == "__main__":
     else:
         losses, parameter_mag, gradients, hidden_state_mag = train(model, data_loader,
                         criterion, optimizer,
-                        config["pred_hor"], device, n_epochs=config["n_epochs"],
+                        config["pred_hor"], device, 
+                        n_epochs=config["n_epochs"],
+                        max_grad_norm=config["max_grad_norm"],
                         save_name="test")
 
 

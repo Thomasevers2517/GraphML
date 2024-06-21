@@ -27,8 +27,8 @@ class Graph_RNN(torch.nn.Module):
         print(f"n_nodes: {n_nodes}, n_features: {n_features}, h_size: {h_size}, f_out_size: {f_out_size}")
         
         self.init_mag = 0.01
-        self.init_H = torch.nn.parameter.Parameter(torch.randn(h_size, device=self.device, dtype=self.dtype)* self.init_mag, requires_grad=True)
-        
+        # self.init_H = torch.nn.parameter.Parameter(torch.randn(h_size, device=self.device, dtype=self.dtype)* self.init_mag, requires_grad=True)
+        self.init_H = torch.zeros(h_size, device=self.device, dtype=self.dtype)
         self.A = torch.nn.parameter.Parameter(torch.randn(h_size, h_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         self.B = torch.nn.parameter.Parameter(torch.randn(h_size, n_features , device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
         self.C = torch.nn.parameter.Parameter(torch.randn(h_size, f_out_size, device=self.device, dtype=self.dtype)* self.init_mag ,  requires_grad=True)
@@ -51,6 +51,8 @@ class Graph_RNN(torch.nn.Module):
         # torch.nn.init.xavier_normal_(self.E2)
 
         self.H2X_out_MLP = torch.nn.Sequential(
+            torch.nn.Linear(h_size, h_size),
+            torch.nn.ReLU(),
             torch.nn.Linear(h_size, h_size),
             torch.nn.ReLU(),
             torch.nn.Linear(h_size, h_size),
@@ -149,7 +151,7 @@ class Graph_RNN(torch.nn.Module):
         # self.H = torch.tanh(AH + BX + CAG + self.D_expanded) 
         # Tanh saturates the gradients, so we use ReLU instead
         self.H = self.H_prev + torch.tanh( AH + BX + CAG + self.D_expanded)
-        self.H_out= self.H2X_out_MLP(self.H.view(batch_size*self.n_nodes, self.h_size)).view(batch_size, self.n_nodes, self.n_features)
-        x_out = self.H_out + FX + self.G_expanded
+        self.H2out= self.H2X_out_MLP(self.H.view(batch_size*self.n_nodes, self.h_size)).view(batch_size, self.n_nodes, self.n_features)
+        x_out = self.H2out + FX + self.G_expanded
         self.H_prev = self.H
         return x_out
